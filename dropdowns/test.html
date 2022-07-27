@@ -1,0 +1,49 @@
+<head>
+<style>
+* {
+	box-sizing: border-box;
+}
+h1 {
+	position: relative;
+	margin-bottom: 0;
+}
+h1 img {
+	position: absolute;
+	top: 7px;
+	right: 10px;
+}
+.hide .inside {
+	position: relative;
+	display: none;
+}
+.down {
+	display:none;
+
+}
+.hide .up {
+	display: none;
+}
+.hide .down {
+	display: inline;
+}
+</style>
+</head>
+<body>
+<div class=hide id=x style='width:300px'>
+<h1 style='width:100%;background:lightgray'>
+Title
+<img class=down src='expand_more.svg'>
+<img class=up src='expand_less.svg'>
+</h1>
+<div class=inside style='width:100%;background:cyan; padding:10px'>
+Some stuff
+</div>
+</div>
+</body>
+<script>
+let out = document.getElementById('x')
+out.onclick = function(evt) {
+	console.log('clicked')
+	out.className = out.className=='hide'?'':'hide'
+}
+</script>

@@ -1,0 +1,90 @@
+<style>
+
+* {
+	box-sizing: border-box;
+}
+
+.scrollable-element {
+	overflow: scroll;
+	position: relative;
+	width: 200px;
+	height: 200px;
+}
+
+.panes-wrapper {
+	position: relative;
+	display: flex;
+	flex-wrap: wrap;
+	justify-content: flex-start;
+	align-items: flex-start;
+	--top-height: 30px;
+	--left-width: 30px;
+	--width: 300px;
+	--height: 600px;
+	width: var(--width);
+	height: var(--height);
+}
+
+.topleft-pane {
+	position: sticky;
+	top: 0;
+	left:0;
+	border: 1px solid black;
+	background: white;
+	width: var(--left-width);
+	height: var(--top-height);
+	z-index: 2;
+}
+
+.colheader-pane {
+	position: sticky;
+	top: 0;
+	border: 1px solid black;
+	border-left: 0;
+	background: white;
+	width: calc(var(--width) - var(--left-width));
+	height: var(--top-height);
+	z-index: 1;
+}
+
+.rowheader-pane {
+	position: sticky;
+	left: 0;
+	border: 1px solid black;
+	border-top: 0;
+	background: white;
+	width: var(--left-width);
+	height: calc(var(--height) - var(--top-height));
+	z-index: 1;
+}
+
+.body-pane {
+	position: relative;
+	background: white;
+	width: calc(var(--width) - var(--left-width));
+	height: calc(var(--height) - var(--top-height));
+	border: 1px solid black;
+	border-left: 0;
+	border-top:0;
+}
+</style>
+
+<body>
+
+<div class="scrollable-element">
+    <div class="panes-wrapper">
+        <div class="topleft-pane">0</div>
+        <div class="colheader-pane">
+		col
+		</div>
+        <div class="rowheader-pane">
+		row
+		</div>
+        <div class="body-pane">
+		body
+		<div style='position:absolute; right:0; bottom:0'>end</div>
+		</div>
+    </div>
+</div>
+
+</body>

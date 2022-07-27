@@ -1,0 +1,147 @@
+<style>
+    * {
+        box-sizing: border-box;
+    }
+
+    .scrollable-element {
+        overflow: scroll;
+        position: relative;
+        width: 250px;
+        height: 350px;
+    }
+
+    .grid-wrapper {
+        position: relative;
+        display: grid;
+        width: 300px;
+        height: 600px;
+        grid-template-columns: 50px auto;
+        grid-template-rows: 30px auto;
+    }
+
+    .topleft-pane {
+        position: sticky;
+        top: 0;
+        left: 0;
+        border: 1px solid black;
+        background: white;
+        z-index: 2;
+    }
+
+    .colheader-pane {
+        position: sticky;
+        top: 0;
+        border: 1px solid black;
+        border-left: 0;
+        background: white;
+        overflow: hidden;
+        z-index: 1;
+    }
+
+    .rowheader-pane {
+        position: sticky;
+        left: 0;
+        border: 1px solid black;
+        border-top: 0;
+        background: white;
+        overflow: hidden;
+        z-index: 1;
+    }
+
+    .body-pane {
+		position: relative;
+        background: white;
+        border: 1px solid black;
+        border-left: 0;
+        border-top: 0;
+        overflow: hidden;
+    }
+</style>
+
+<body>
+    <div class="scrollable-element">
+        <div class="grid-wrapper">
+            <div class="topleft-pane"></div>
+            <div class="colheader-pane">
+                0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5
+			</div>
+            <div class="rowheader-pane">
+                lorem ipsum blah lorem ipsum blah lorem ipsum blah lorem ipsum
+                blah lorem ipsum blah lorem ipsum blah lorem ipsum blah
+            </div>
+            <div class="body-pane">
+                <p>
+                    Pellentesque ultrices imperdiet diam non volutpat. Interdum
+                    et malesuada fames ac ante ipsum primis in faucibus. Cras
+                    non leo convallis, fermentum arcu quis, aliquet turpis. Ut a
+                    tincidunt metus. Fusce sapien justo, imperdiet sit amet
+                    pretium et, pellentesque et erat. Phasellus ex quam,
+                    suscipit sed nibh a, blandit mattis neque. Sed magna dui,
+                    laoreet in ipsum vel, lobortis viverra orci. Nulla dictum
+                    ullamcorper faucibus. Praesent efficitur sapien lorem, a
+                    venenatis ante eleifend eu. Vestibulum a gravida urna.
+                </p>
+
+                <p>
+                    Nam felis leo, porttitor vitae sem at, aliquet convallis
+                    est. Curabitur non felis pellentesque, auctor sem ut,
+                    tristique nisl. Morbi pretium posuere massa, at consequat
+                    sapien fermentum sed. Morbi facilisis rhoncus nunc, ac
+                    eleifend erat molestie vitae. Morbi fermentum malesuada
+                    fringilla. Nunc sit amet pulvinar orci. Pellentesque nisi
+                    ex, porta a arcu ut, aliquet sollicitudin tortor. Aliquam
+                    luctus id ipsum vel consectetur. In lectus nibh, lobortis
+                    laoreet placerat sed, elementum fringilla purus. Ut auctor
+                    venenatis felis, eget egestas dui viverra a. Curabitur ut
+                    auctor quam. Fusce finibus leo ut turpis luctus, ut
+                    fringilla est cursus.
+                </p>
+
+                <div
+                    style="
+                        position: absolute;
+                        top: 10;
+                        left: 15;
+                        background: red;
+                    "
+                >
+                    end
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+<script>
+
+let scrolly = document.querySelector('.scrollable-element'),
+	grid = document.querySelector('.grid-wrapper'),
+	colhead = document.querySelector('.colheader-pane'),
+	rowhead = document.querySelector('.rowheader-pane'),
+	body = document.querySelector('.body-pane')
+
+console.log('col, row parent ', colhead.offsetParent, rowhead.offsetParent)
+
+console.log('col, row top    ', colhead.offsetTop, rowhead.offsetTop)
+console.log('col, row left   ', colhead.offsetLeft, rowhead.offsetLeft)
+
+scrolly.onscroll = evt=>{
+	console.log('\nscroll top, left', scrolly.scrollTop, scrolly.scrollLeft)
+	console.log('col, row top    ', colhead.offsetTop, rowhead.offsetTop)
+	console.log('col, row left   ', colhead.offsetLeft, rowhead.offsetLeft)
+	console.log('body top left   ',body.offsetTop, body.offsetLeft)
+}
+
+/*
+For the body:
+	top, left of visible area = scrollTop, scrollLeft
+	
+For the col header:
+	top, left of the visible area = 0, scrollLeft
+	right of visible area = scrollLeft + scroll width-rowheader width
+	
+For the row header:
+	top, left of the visible area is scrollTop, 0
+	bottom of the visible area = scrollTop+ scroll height - colheader height
+*/
+
+</script>
