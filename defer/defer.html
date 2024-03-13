@@ -1,0 +1,17 @@
+<script type='module'>
+
+function Defer() {
+    // creates a self-resolvable promise
+    let resolve,
+        reject,
+        p = new Promise((...args) => ([resolve, reject] = args))
+    return Object.assign(p, { resolve, reject })
+}
+
+let d = Defer()
+setTimeout(()=>d.resolve('defer done'), 5000)
+console.log('starting')
+console.log(await d.then(r=>r+'!')) // then not needed
+console.log('finished', await d.then(r=>r+'!!!'))
+
+</script>

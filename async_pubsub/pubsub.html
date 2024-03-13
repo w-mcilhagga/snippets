@@ -1,0 +1,57 @@
+<script type='module'>
+// async version of pubsub
+
+function Defer() {
+    // creates a self-resolvable promise
+    let resolve,
+        reject,
+        p = new Promise((...args) => ([resolve, reject] = args))
+    return Object.assign(p, { resolve, reject })
+}
+
+let posts = [],
+    subscribers = {},
+    newposts
+
+function subscribe(topic, callback) {
+    // callback(topic, ...args)
+    subscribers[topic] ||= []
+    subscribers[topic].push(callback)
+}
+
+function post(topic, ...args) {
+    posts.push({topic, args})
+    newposts.resolve(true)
+}
+
+window.post = post
+
+async function start() {
+	// set global newposts 
+	newposts  = Defer()
+    while (true) {
+        if (!(await newposts)) { 
+			// someone has called stop
+			return 
+		}
+        let allposts = posts
+        posts = []
+        for (let post of allposts) {
+            for (let subs of subscribers[post.topic]||[]) {
+                subs(post.topic, ...post.args)
+            }
+        }
+        newposts = Defer()
+    }
+}
+
+function stop() {
+    newposts.resolve(false)
+}
+
+start()
+
+subscribe('a', console.log)
+subscribe('b', console.log)
+
+</script>

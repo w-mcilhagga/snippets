@@ -1,0 +1,278 @@
+<script>
+    // structural equality function
+    // this will blow up if there are circular references
+
+    //let get_type = (arg) => Object.prototype.toString.call(arg).slice(8, -1)
+    let get_type = (a) => a.constructor.name
+
+    // test:
+    // for (let x of ['a',1,1n,NaN,Infinity, {}, [], /./, new Date(), new Map(), new Set(), new Error(), Symbol(), ()=>true]) {
+    //    console.log(x, get_type(x))
+    //}
+
+    function equal(a, b) {
+        // check identity
+        if (a === b) {
+            return true
+        }
+
+        // get types/constructors of the objects
+        let a_cons = get_type(a),
+            b_cons = get_type(b)
+
+        // check equality
+        if (
+            a == b &&
+            (equal.allow_type_coercion ||
+                a_cons === b_cons ||
+                (a_cons !== 'String' && b_cons !== 'String'))
+        ) {
+            return true
+        }
+
+        // check types. this is after == test because some types
+        // are reasonably the same e.g. 1 == 1n, 1 == '1' with coercion
+        if (a_cons !== b_cons) {
+            return false
+        }
+
+        // check specific type equality
+        if (equal_test[a_cons]) {
+            return equal_test[a_cons](a, b)
+        }
+
+        // a & b must be user-defined types, or
+        // one of the types not explicitly checked.
+        // All these are just treated as Objects
+        return equal_test.Object(a, b)
+    }
+
+    // configuration options
+    equal.allow_type_coercion = true // to get same result as a==b when defined
+    equal.check_all_properties = false
+
+    // The tests for same typed objects
+
+    let equal_test = {
+        Number: (a, b) => isNaN(a) && isNaN(b), // the only case not yet examined
+
+        String: () => false, // equality already checked
+
+        Date: (a, b) => a - b == 0, // ignoring timezones
+
+        RegExp: (a, b) => a.source == b.source && a.flags == b.flags,
+
+        Array: (a, b) => {
+            if (a.length != b.length) {
+                return false
+            }
+            // check for any extra properties besides numerical
+            if (equal.check_all_properties) {
+                return equal_test.Object(a, b)
+            }
+            // check numeric indexed elements for equality
+            for (let i = 0; i < a.length; i++) {
+                if (!equal(a[i], b[i])) {
+                    return false
+                }
+            }
+            return true
+        },
+
+        Object: (a, b) => {
+            // check keys for equality
+            let a_keys = Object.keys(a).sort(),
+                b_keys = Object.keys(b).sort()
+            if (!sorted_identical(a_keys, b_keys)) {
+                return false
+            }
+            // check values for equality
+            for (let k of a_keys) {
+                if (!equal(a[k], b[k])) {
+                    return false
+                }
+            }
+            return true
+        },
+
+        Map: (a, b) => {
+            // maps must have same size
+            if (a.size != b.size) {
+                return false
+            }
+            // check for any extra properties
+            if (equal.check_all_properties && !equal_test.Object(a, b)) {
+                return false
+            }
+            // check for identical keys, they may not be in
+            // the same order.
+            let a_keys = [...a.keys()]
+            if (!unsorted_identical(a_keys, [...b.keys()])) {
+                return false
+            }
+            // check for equal elements
+            for (let k of a_keys) {
+                if (!equal(a.get(k), b.get(k))) {
+                    return false
+                }
+            }
+            return true
+        },
+
+        Set: (a, b) => {
+            // sets must have same size
+            if (a.size != b.size) {
+                return false
+            }
+            // check for any extra properties
+            if (equal.check_all_properties && !equal_test.Object(a, b)) {
+                return false
+            }
+            // check identical elements (because that's how sets work)
+            // if every elem of a is in b, this implies equality
+            // because they are same size
+            for (let a_item of a) {
+                if (!b.has(a_item)) {
+                    return false
+                }
+            }
+            return true
+        },
+
+        Symbol: (a, b) => a === b, // identity only
+        Function: (a, b) => a === b, // identity only
+        Error: (a, b) => a.message == b.message,
+    }
+
+    function unsorted_identical(a, b) {
+        // a is iterable/iterator & b is iterable.
+        // checks that objects in a, b are identical
+        // b is destroyed in the process
+        for (let a_item of a) {
+            let idx = b.indexOf(a_item)
+            if (idx == -1) {
+                return false
+            }
+            // remove because of duplicates,
+            // although this isn't an issue with keys!!
+            // might also do b[idx]={}
+            b.splice(idx, 1)
+        }
+        return true
+    }
+
+    function sorted_identical(a, b) {
+        // a, b are arrays of strings/numbers
+        // in sort order
+        if (a.length != b.length) {
+            return false
+        }
+        for (let i = 0; i < a.length; i++) {
+            if (a[i] != b[i]) {
+                return false
+            }
+        }
+        return true
+    }
+
+    // all typed arrays use the same test as Array
+    for (let t in [
+        'Int8Array',
+        'Uint8Array',
+        'Uint8ClampedArray',
+        'Int16Array',
+        'Uint16Array',
+        'Int32Array',
+        'Uint32Array',
+        'Float32Array',
+        'Float64Array',
+    ]) {
+        equal_test[t] = equal_test['Array']
+    }
+
+    // All errors use the same test
+    // to do
+
+    // all pairs should be equal
+    class X {}
+
+    let values = [
+        [[1, 2], [1, 2], true],
+        [[1, 2], [2, 1], false],
+        [
+            { a: [2, 3], b: [4] },
+            { a: [2, 3], b: [4] },
+        ],
+        [
+            { a: [2, 3], b: [4] },
+            { b: [4], a: [2, 3] },
+        ],
+        [
+            { a: 2, b: '4' },
+            { a: 2, b: 4 },
+        ],
+        [{ a: 2, b: '4' }, { a: 2, B: 4 }, false],
+        [
+            new Map([
+                ['a', 1],
+                ['b', 2],
+            ]),
+            new Map([
+                ['b', 2],
+                ['a', 1],
+            ]),
+        ],
+        [new Map([['a', [1, 2]]]), new Map([['a', [2, 1]]]), false],
+        [new Map([['a', 1]]), new Map([['b', 1]]), false],
+        [
+            new Map([
+                [{}, 3],
+                [{}, 2],
+                [{}, 1],
+            ]),
+            new Map([
+                [{}, 1],
+                [{}, 2],
+                [{}, 3],
+            ]),
+            false, // keys not the same
+        ],
+        [new Set(['a', 1, 'b', 2]), new Set(['b', 2, 'a', 1])],
+        [new Set(['a', 1]), new Set(['b', 1]), false],
+        [new Set([{}, 1, {}, 2]), new Set([{}, 1, {}, 2, {}]), false],
+        [new Set(), new Map(), false],
+        [
+            [null, null, null],
+            [null, null, null],
+        ],
+        [
+            [{ a: 3 }, { b: 4 }],
+            [{ a: '3' }, { b: '4' }],
+        ],
+        [3, 3],
+        ['beep', 'beep'],
+        [3, '3'],
+        [3, 3n],
+        [NaN, NaN],
+        [Infinity, Infinity],
+        [Infinity, -Infinity, false],
+        [new Date(1387585278000), new Date('Fri Dec 20 2013 16:21:18 GMT-0800 (PST)')],
+        [new X(), new X()],
+        [new X(), {}, false],
+        (() => {
+            let a = new X()
+            a.prop = 1
+            return [a, new X(), false]
+        })(),
+        [Error(10), Error(10)],
+        [Error(10), Error(5), false],
+    ]
+
+    for (let i = 0; i < values.length; i++) {
+        let eq = equal(values[i][0], values[i][1]),
+            result = values[i][2] == undefined ? true : values[i][2]
+        if (eq != result) {
+            console.log('error: ', i, values[i][0], values[i][1], result)
+        }
+    }
+</script>
