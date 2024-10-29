@@ -1,0 +1,15 @@
+<script type="module">
+    import { publish, subscribe, unsubscribe } from './pubsub.js'
+
+    subscribe('x.y', (topic, data, current) =>
+        console.log('subscription1', { topic, data, current })
+    )
+    subscribe('x', (topic, data, current) =>
+        console.log('subscription2', { topic, data, current })
+    )
+
+    publish('x.y.z', 'message 1')
+    publish('x.y', 'message 2')
+
+    console.log('script end')
+</script>

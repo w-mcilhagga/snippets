@@ -1,0 +1,11 @@
+<script type="module">
+    import { publish, subscribe, unsubscribe } from './pubsub_basic.js'
+
+    subscribe('x', (topic, data) => console.log('subscription1', { topic, data }))
+    subscribe('y', (topic, data) => console.log('subscription2', { topic, data }))
+
+    publish('x', 'message 1')
+    publish('y', 'message 2')
+
+    console.log('script end')
+</script>

@@ -1,99 +1,158 @@
-# Minimalist pubsub
+# Building a tiny pub-sub system.
 
-The smallest pubsub library I can imagine:
+pub-sub (publish-subscribe) is a pattern where there are things that send out messages categorized into topics (publishers) and things that  respond to these messages (subscribers). There are a lot of pub-sub libraries out there, some simple and some not. Here we're going to build a pub-sub system in javascript that is small but just as full-featured as the big ones.
+
+A pub-sub system is usually built around two functions:
+
+1. **subscribe**: you call subscribe to register an interest in topics that might be published. Our pub-sub system will have a function `subscribe(topic_string, subscriber_fn)` which declares that the `subscriber_fn` will be called every time the `topic_string` is published.
+
+2. **publish** which publishes topics together with any additional data. Our pub-sub system will have a function `publish(topic_string, data)`. When it's called, then all the subscriber functions for the `topic_string` are executed. Each subscriber function is given the topic string and the data.
+
+### subscribe
+
+We'll deal with subscriptions first. We need to store all the subscribers according to the topics they have subscribed to. An obvious data structure for this is just a plain object:
 
 ```javascript
-let subscribers = {},
-    subscribe = (topic, handler) => (subscribers[topic] ||= []).push(handler),
-    publish = (topic, data) => setTimeout(() => send(topic, data), 0),
-    send = (topic, data)  => subscribers[topic]?.forEach?.(
-        handler => handler(topic, data)
-    )
+let subscribers = {}
 ```
 
-Let's walk through it:
+Our pub-sub system is going to be an ES6 module, and since we don't want end users playing with the subscribers object, we don't export it.
 
-1. `subscribers = {}`
-
-    This creates the object to hold the subscribers.
-
-2. `subscribe = (topic, handler) => (subscribers[topic] ||= []).push(handler)`
-
-    This subscribes a handler function to a topic. The `(subscribers[topic] ||= [])` ensures there is an array to hold all the topic's subscribers, and `.push(handler)` adds the handler to that array.
-
-3. `publish = (topic, data) => setTimeout(() => send(topic, data), 0)`
-
-    This puts a call to `send` on the task queue. Exploiting the task queue is why this library is so small (idea stolen from https://github.com/mroderick/PubSubJS ).
-
-4. `send = (topic, data)  => subscribers[topic]?.forEach?.(handler => handler(topic, data))`
-
-    This grabs the array of subscribers and, if it exists, iterates over the saved handlers calling them with the topic & data. It uses the nullish operator `?.` in case the topic has no subscribers.
-
-This is missing an `unsubscribe` function. If you need it, here it is (it's as long as the whole pubsub system above !):
+When we subscribe to a topic, we want to store the subscriber in the object keyed by the topic. One way to do this is to make `subscribers[topic]` a Set of subscribers. A set is better than an Array because it ensures that we can't accidentally subscribe twice to the same topic. Our subscribe function could be
 
 ```javascript
-function unsubscribe(topic, handler) {
-    let idx = subscribers[topic]?.indexOf?.(handler)
-    handler
-        ? idx >= 0 && subscribers[topic].splice(idx, 1)
-        : delete subscribers[topic]
+export function subscribe(topic, subscriber) {
+    if (!subscribers[topic]) {
+        subscribers[topic] = new Set()
+    }
+    subscribers[topic].add(subscriber)
 }
 ```
-First, this gets the index into the subscriber array that matches the handler, if any. If no handler is supplied, all subscribers are removed, otherwise just the matching one.
-
-### Hierarchical Messages.
-
-Many pubsub systems allow you to define messages in a hierarchy, so that we may have a topic like `car.wheel` and `car.seat` which can trigger subscribers to the specific topics as well as subscribers to the the more general topic `car`. We can add this functionality to this library by changing the `send` function:
+The if-statement makes sure that there is a set to add the subscriber to. The if statement could be boiled down to `subscribers[topic] ||= new Set()`, and since that statement returns `subscribers[topic]`, we can then add to it, giving us a neat one-liner:
 
 ```javascript
-    let send = (topic, data) => {
-            topic && subscribers[topic]?.forEach?.(handler => handler(topic, data))
-            topic && send(topic.replace(/(^|\.)[^.]+$/, ''), { topic, data })
-        }
+export let subscribe = (topic, subscriber) => (subscribers[topic] ||= new Set()).add(subscriber)
 ```
-The first line of this is just the original `send` function. The next line checks
-if the topic exists (i.e. it isn't a blank topic `""`), then sends to the topic with the last dotted component (or the whole string if no dots) stripped off with a regular expression. 
 
-### Documentation
+Unsubscribe is pretty easy with sets:
 
-Include the pubsub library using a script tag 
-`<script src="path/to/pubsub.js"></script>`. Then you can use the
-following three functions:
+```javascript
+export let unsubscribe(topic, subscriber) => subscribers[topic]?.remove?.(subscriber)
+```
+The nullish operator `?.` is used because the topic might not exist, and we don't want to throw an exception if that's the case. We might also want to unsubscribe everything from a topic if, for example, we no longer need the topic. We can extend `unsubscribe` so that if no subscriber function is given, all subscribers are removed:
 
-* `subscribe(topic, handler)`
+```javascript
+export let unsubscribe = (topic, subscriber) => {
+        arguments.length == 1
+            ? delete subscribers[topic]
+            : subscribers[topic]?.remove?.(subscriber)
+    },
+```
 
-   * `topic`: string
-   * `handler`: a function with signature `handler(topic, data)` where topic is
-      the topic string which was published, and data is an arbitrary object.
+### publish
 
-   This subscribes the handler function to the topic. It will be called whenever the
-   topic is published.
+When we publish a topic, we just call all the subscribers to that topic. So the publish function could look like this:
 
-* `publish(topic, data)`
+```javascript
+function publish(topic, data) {
+    if (subscribers[topic]) {
+        for (let subs of subscribers[topic]) {
+            subs(topic, data)
+        }
+    }
+}
+```
 
-   * `topic`: string
-   * `data`: object
+This function checks that there are any subscribers before iterating over the members of the set. This can also be shortened a bit, by folding the test for `subscribers[topic]` into the for-loop, like this
 
-   This publishes the topic and associated data, if any. The subscribers to the topic
-   are called when the task queue gets around to it. The topic may be a hierarchical 
-   topic, e.g. `"a.b.c"`. In this case, all subscribers to `"a.b.c"` are called first, then all subscribers to `"a.b"`, then all subscribers to `"a"`. In each case, the
-   data object contains the topic and the data passed to the lower level of subscriber.
+```javascript
+function publish(topic, data) {
+    for (let subs of subscribers[topic] || []) {
+        subs(topic, data)
+    }
+}
+```
 
-* `unsubscribe(topic, handler)`
+Here, if `subscribers[topic]` doesn't exist, we iterate over an empty array.
 
-  * `topic`: string
-  * `handler`: either absent or a handler previously passed to subscribe.
+One problem with this is that the publish is synchronous: the subscribers are all executed immediately the publish function is called. Usually, we want asynchronous publishing, so the subscribers are run after the current task ends. We can do this by breaking publish into two functions: one schedules the publish, and one carries it out. 
 
-  If handler is present, it is unsubscribed from the given topic. If handler is absent, all handlers of the given topic are unsubscribed.
+```javascript
+export let  publish(topic, data) => setTimeout(() => send(topic, data), 0)
 
-### Example.
+function send(topic, data) {
+    for (let subs of subscribers[topic] || []) {
+        subs(topic, data)
+    }
+}
+```
+
+In this code, the subscribers are invoked by the `send` function. `publish` merely schedules the `send` to occur in the javascript task loop using `setTimeout` with a delay of zero. (This idea is from https://github.com/mroderick/PubSubJS ).
+
+All of this code, which makes a fully functional pub-sub system, can be found in the file `pubsub_basic.js`. In addition, in this file, `send` is altered to ignore any exceptions raised by subscriber functions. Minified, this pub-sub system is only 0.25 kb.
+
+### Example
+
 ```html
-<script src="pubsub.js"></script>
-<script>
-    subscribe('x', (...args) => console.log('subscription1', ...args))
-    subscribe('x.y', (topic, data) => {
-        console.log('subscription2', topic, data)
-    })
+<script type=module>
+    import {publish, subscribe, unsubscribe} from './path/to/pubsub_basic.js'
+
+    subscribe('x', (topic, data) => console.log('subscription1', { topic, data }))
+    subscribe('y', (topic, data) => console.log('subscription2', { topic, data }))
+
+    publish('x', 'message 1')
+    publish('y', 'message 2')
+
+    console.log('script end')
+</script>
+```
+
+This produces the following output
+```
+script end
+subscription1 {topic: 'x', data: 'message 1'}
+subscription2 {topic: 'y', data: 'message 2'}
+```
+
+## Hierarchical Topics.
+
+Some pubsub systems allow you to define a message hierarchy, so that we can have topics like `car.wheel` and `car.seat` which trigger subscribers to these specific topics as well as subscribers to the the higher level topic `car`. We can add this to our library by changing the `send` function:
+
+```javascript
+function send(topic, data) {
+    for (let subs of subscribers[topic] || []) {
+        subs(topic, data)
+    }
+    topic && send(topic.replace(/(^|\.)[^.]+$/, ''), data)
+}
+```
+TThe last line checks if the topic exists (i.e. it isn't a blank topic `""`), then sends with the topic having the last dotted component (or the whole string if no dots) stripped off with a regular expression. 
+
+The problem with this is that the higher-level subscriber doesn't get the original 
+topic, but only the one they subscribe to, so they don't know where the publish 
+originated. We can fix this by creating a  
+`currenttopic` parameter (which is also passed to the subscriber as the last parameter, so it can be ignored):
+
+```javascript
+function send(topic, data, currenttopic=topic) {
+    for (let subs of subscribers[currenttopic] || []) {
+        subs(topic, data, currenttopic)
+    }
+    currenttopic && send(topic, data, currenttopic.replace(/(^|\.)[^.]+$/, ''))
+}
+```
+
+### Example
+```html
+<script type=module>
+    import {publish, subscribe, unsubscribe} from './path/to/pubsub.js'
+
+    subscribe('x.y', (topic, data, current) =>
+        console.log('subscription1', { topic, data, current })
+    )
+    subscribe('x', (topic, data, current) =>
+        console.log('subscription2', { topic, data, current })
+    )
 
     publish('x.y.z', 'message 1')
     publish('x.y', 'message 2')
@@ -105,50 +164,56 @@ following three functions:
 This produces the following output
 ```
 script end
-subscription2 x.y {topic: 'x.y.z', data: 'message 1'}
-subscription1 x {topic: 'x.y', data: {topic: 'x.y.z', data: 'message 1'}}
-subscription2 x.y message 2
-subscription1 x {topic: 'x.y', data: 'message 2'}
+subscription1 {topic: 'x.y.z', data: 'message 1', current: 'x.y'}
+subscription2 {topic: 'x.y.z', data: 'message 1', current: 'x'}
+subscription1 {topic: 'x.y', data: 'message 2', current: 'x.y'}
+subscription2 {topic: 'x.y', data: 'message 2', current: 'x'}
 ```
-
-Notive that when the subscribers higher up the chain (e.g. the subscriber to 'x') gets the data, it's the topic & data fed to the previous subscriber. In the third line of the output above, the data object is doubly nested, and shows that the topic was originally `'x.y.z'`
 
 ### Bubbling.
 
-The hierarchical system is similar to event bubbling in the DOM. However, the bubbling
-always takes place, and there might be a need to cancel it. We can adjust the send function to allow handlers to cancel bubbling, as follows;
+Hierarchical topics are similar to event bubbling in the DOM. However, the bubbling
+always takes place in the above code, and there might be a need to cancel it. We can adjust the send function to allow handlers to cancel bubbling, as follows;
 
 ```javascript
-    let send = (topic, data, stop = false) => {
-        subscribers[topic]?.forEach?.((handler) => (stop = handler(topic, data) || stop))
-        topic &&
-            stop != 'stopPropagation' &&
-            send(topic.replace(/(^|\.)[^.]+$/, ''), { topic, data })
+function send(topic, data, currenttopic=topic, stop = false) {
+    for (let subs of subscribers[currenttopic] || []) {
+        stop = subs(topic, data, currenttopic) || stop
     }
+    stop != 'stopPropagation' 
+        && currenttopic && send(topic, data, currenttopic.replace(/(^|\.)[^.]+$/, ''))
+}
 ```
-Here, if any handler returns the string `'stopPropagation'`, then the bubbling upwards 
-is prevented.
+In this version of `send` if any subscriber returns the string `'stopPropagation'`, then the bubbling upwards is prevented.
 
-#### Bubbling Example:
+The hierarchical pub-sub system together with cancelling bubbling can be found in the file `pubsub.js`, which minified (in `pubsub.min.js`) is only 0.33 kb. (Note: the minified version renames the `subscribers` object as `q` for extra space saving.)
+
+### Example.
 ```html
-<script src="pubsub.js"></script>
-<script>
-    subscribe('x', (...args) => console.log('subscription1', ...args))
-    subscribe('x.y', (topic, data) => {
-        console.log('subscription2', topic, data)
-        return 'stopPropagation'
+<script type=module>
+    import {publish, subscribe, unsubscribe} from './path/to/pubsub.js'
+
+    subscribe('x.y', (topic, data, current) => {
+        console.log('subscription1', { topic, data, current })
+        return data == 'message 2' && 'stopPropagation'
     })
+    subscribe('x', (topic, data, current) =>
+        console.log('subscription2', { topic, data, current })
+    )
 
     publish('x.y.z', 'message 1')
+    publish('x.y', 'message 2')
+
     console.log('script end')
 </script>
 ```
 
-This gives
+This produces the following output
 ```
 script end
-subscription2 x.y {topic: 'x.y.z', data: 'message 1'}
+subscription1 {topic: 'x.y.z', data: 'message 1', current: 'x.y'}
+subscription2 {topic: 'x.y.z', data: 'message 1', current: 'x'}
+subscription1 {topic: 'x.y', data: 'message 2', current: 'x.y'}
 ```
-In this case, the propagation to topic `x` was stopped by an `x.y` handler.
 
-The whole of this hierarchical pubsub system with stop bubbling is available in the file `pubsub.js` (0.7 kb unzipped).
+Here the 'stopPropagation' in the first subscriber cancelled the call to the higher-up subscriber with  data equal to 'message 2'
